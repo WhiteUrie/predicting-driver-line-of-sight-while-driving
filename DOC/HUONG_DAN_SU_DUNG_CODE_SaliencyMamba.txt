@@ -1,0 +1,518 @@
+HƯỚNG DẪN SỬ DỤNG CODE ĐỂ TẠO KẾT QUẢ TRONG BÁO CÁO
+
+Tên đề tài:
+Ứng dụng mô hình SaliencyMamba/SalM² trong dự đoán vùng chú ý của tài xế
+
+Sinh viên thực hiện:
+Hậu Võ
+
+Mục đích của file:
+File này hướng dẫn cách sử dụng source code, dataset và các lệnh chạy để tạo ra kết quả như đã trình bày trong báo cáo đồ án. Nội dung bao gồm cách chuẩn bị môi trường, cấu trúc thư mục, cách chạy huấn luyện, đánh giá, trực quan hóa kết quả và ghép ảnh kết quả thành video.
+
+============================================================
+1. CÁC FILE GỬI KÈM
+============================================================
+
+Nội dung gồm các file sau:
+
+1. source_code.zip
+   - Chứa toàn bộ source code sử dụng trong đồ án.
+   - Bao gồm các file chính như train.py, evaluation.py, visualization.py, thư mục models, utils, dataset loader và các file cấu hình liên quan.
+
+2. dataset_sample.zip
+   - Chứa một phần dữ liệu mẫu được trích từ dataset gốc.
+   - Dùng để thầy kiểm tra cấu trúc dữ liệu đầu vào, ground truth và cách tổ chức dataset.
+   - Do dataset gốc có dung lượng lớn nên em chỉ gửi dữ liệu mẫu.
+
+3. results_demo.zip
+   - Chứa kết quả chạy thử của mô hình.
+   - Bao gồm ảnh gốc, heatmap dự đoán, ảnh overlay và video kết quả.
+
+4. HUONG_DAN_SU_DUNG_CODE.txt
+   - File hướng dẫn sử dụng code và giải thích cách tạo ra kết quả trong báo cáo.
+
+============================================================
+2. YÊU CẦU MÔI TRƯỜNG
+============================================================
+
+Hệ điều hành khuyến nghị:
+- Ubuntu Linux
+
+Ngôn ngữ và thư viện:
+- Python 3.10
+- PyTorch
+- Torchvision
+- OpenCV
+- NumPy
+- SciPy
+- tqdm
+- Pillow
+- einops
+- timm
+- matplotlib
+- ffmpeg
+
+GPU khuyến nghị:
+- NVIDIA GPU có hỗ trợ CUDA.
+- Trong đồ án, em chạy trên GPU NVIDIA GTX 1650 Max-Q.
+
+Tạo môi trường conda:
+
+conda create -n salmamba python=3.10 -y
+conda activate salmamba
+
+Cài đặt thư viện cần thiết:
+
+pip install torch torchvision torchaudio
+pip install opencv-python numpy scipy tqdm pillow einops timm matplotlib
+
+Cài ffmpeg để ghép ảnh thành video:
+
+sudo apt update
+sudo apt install ffmpeg -y
+
+Kiểm tra GPU:
+
+python -c "import torch; print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
+
+Nếu kết quả trả về True và hiện tên GPU thì môi trường đã nhận GPU.
+
+============================================================
+3. CẤU TRÚC THƯ MỤC SOURCE CODE
+============================================================
+
+Sau khi giải nén source_code.zip, cấu trúc thư mục dự kiến như sau:
+
+SaliencyMamba/
+├── train.py
+├── evaluation.py
+├── visualization.py
+├── models/
+│   └── ...
+├── utils/
+│   └── ...
+├── dataset/
+│   └── ...
+├── ckpts/
+│   └── ...
+├── visualResults/
+│   └── ...
+└── README.md
+
+Ý nghĩa các thành phần chính:
+
+- train.py:
+  File dùng để huấn luyện mô hình.
+
+- evaluation.py:
+  File dùng để đánh giá mô hình bằng các chỉ số định lượng như CC, SIM và KLD.
+
+- visualization.py:
+  File dùng để tạo kết quả trực quan hóa, bao gồm heatmap dự đoán và ảnh overlay.
+
+- models/:
+  Chứa định nghĩa kiến trúc mô hình SaliencyMamba/SalM².
+
+- dataset/:
+  Chứa dữ liệu hoặc các file xử lý dataset.
+
+- ckpts/:
+  Chứa trọng số mô hình sau khi huấn luyện.
+
+- visualResults/:
+  Chứa kết quả trực quan hóa sau khi chạy visualization.py.
+
+============================================================
+4. CHUẨN BỊ DATASET
+============================================================
+
+Trong đồ án, em sử dụng các dataset liên quan đến bài toán dự đoán vùng chú ý của tài xế, gồm:
+
+- TrafficGaze
+- DrFixD-rainy
+
+Do dataset gốc có dung lượng lớn, file dataset_sample.zip chỉ là dữ liệu mẫu để kiểm tra cấu trúc. Khi chạy đầy đủ để tạo kết quả trong báo cáo, cần đặt dataset đầy đủ theo đúng đường dẫn.
+
+Đường dẫn dataset TrafficGaze trên máy em:
+
+/home/hauvo/SaliencyMamba/dataset/TrafficGaze/Traffic_Gaze/
+
+Đường dẫn dataset DrFixD-rainy trên máy em:
+
+/home/hauvo/SaliencyMamba/dataset/DrFixD_rainy/DrFixD-rainy/
+
+Ví dụ cấu trúc dữ liệu mẫu:
+
+dataset_sample/
+├── images/
+│   ├── frame_000001.jpg
+│   ├── frame_000002.jpg
+│   └── ...
+├── maps/
+│   ├── frame_000001.png
+│   ├── frame_000002.png
+│   └── ...
+├── fixations/
+│   ├── frame_000001.png
+│   ├── frame_000002.png
+│   └── ...
+└── README.txt
+
+Ý nghĩa:
+- images/: ảnh khung hình đầu vào.
+- maps/: bản đồ saliency ground truth.
+- fixations/: điểm nhìn/chú ý của tài xế nếu dataset có cung cấp.
+
+============================================================
+5. CHẠY HUẤN LUYỆN MÔ HÌNH
+============================================================
+
+Di chuyển vào thư mục source code:
+
+cd /home/hauvo/SaliencyMamba
+
+Kích hoạt môi trường:
+
+conda activate salmamba
+
+5.1. Huấn luyện trên TrafficGaze
+
+python train.py \
+    --category TrafficGaze \
+    --root /home/hauvo/SaliencyMamba/dataset/TrafficGaze/Traffic_Gaze \
+    --batch-size 12 \
+    --num_workers 8 \
+    --max_iters 49080 \
+    --epochs 30 \
+    --gpu 0
+
+Nếu muốn train tiếp từ checkpoint cũ:
+
+python train.py \
+    --category TrafficGaze \
+    --root /home/hauvo/SaliencyMamba/dataset/TrafficGaze/Traffic_Gaze \
+    --batch-size 12 \
+    --num_workers 8 \
+    --max_iters 49080 \
+    --epochs 30 \
+    --gpu 0 \
+    --resume ckpts/TrafficGaze/salmm_20260413-16:08:19/model_epoch_2.tar
+
+5.2. Huấn luyện trên DrFixD-rainy
+
+python train.py \
+    --category DrFixD_rainy \
+    --root /home/hauvo/SaliencyMamba/dataset/DrFixD_rainy/DrFixD-rainy \
+    --batch-size 12 \
+    --num_workers 8 \
+    --max_iters 52291 \
+    --epochs 30 \
+    --gpu 0
+
+Kết quả sau khi train:
+- Trọng số mô hình sẽ được lưu trong thư mục ckpts/.
+- Mỗi lần train sẽ tạo một thư mục checkpoint riêng, ví dụ:
+  ckpts/TrafficGaze/salmm_20260414-12:48:59/
+  ckpts/DrFixD_rainy/salmm_20260520-21:49:34/
+
+============================================================
+6. CHẠY ĐÁNH GIÁ MÔ HÌNH
+============================================================
+
+Mục đích:
+Đánh giá mô hình bằng các chỉ số định lượng được trình bày trong báo cáo.
+
+Các chỉ số sử dụng:
+- CC: đo mức tương quan giữa bản đồ saliency dự đoán và ground truth.
+- SIM: đo độ tương đồng giữa bản đồ saliency dự đoán và ground truth.
+- KLD: đo độ sai khác phân phối giữa dự đoán và ground truth.
+
+Lệnh đánh giá trên TrafficGaze:
+
+python evaluation.py \
+    --network salmm \
+    --b 1 \
+    --g 0 \
+    --category TrafficGaze \
+    --root /home/hauvo/SaliencyMamba/dataset/TrafficGaze/Traffic_Gaze \
+    --test_weight salmm_20260414-12:48:59
+
+Lệnh đánh giá trên DrFixD-rainy:
+
+python evaluation.py \
+    --network salmm \
+    --b 1 \
+    --g 0 \
+    --category DrFixD_rainy \
+    --root /home/hauvo/SaliencyMamba/dataset/DrFixD_rainy/DrFixD-rainy \
+    --test_weight salmm_20260520-21:49:34
+
+Kết quả mong đợi:
+Chương trình sẽ in ra các chỉ số đánh giá như CC, SIM và KLD. Các chỉ số này được dùng để lập bảng kết quả trong báo cáo đồ án.
+
+Lưu ý:
+Nếu trong source code file đánh giá không tên là evaluation.py mà tên là test.py hoặc eval.py thì thay evaluation.py bằng đúng tên file trong project.
+
+============================================================
+7. CHẠY TRỰC QUAN HÓA KẾT QUẢ
+============================================================
+
+Mục đích:
+Tạo ảnh heatmap dự đoán và ảnh overlay để minh họa vùng chú ý của tài xế.
+
+7.1. Trực quan hóa trên TrafficGaze
+
+python visualization.py \
+    --network salmm \
+    --b 1 \
+    --g 0 \
+    --category TrafficGaze \
+    --root /home/hauvo/SaliencyMamba/dataset/TrafficGaze/Traffic_Gaze \
+    --test_weight salmm_20260414-12:48:59
+
+7.2. Trực quan hóa trên DrFixD-rainy
+
+python visualization.py \
+    --network salmm \
+    --b 1 \
+    --g 0 \
+    --category DrFixD_rainy \
+    --root /home/hauvo/SaliencyMamba/dataset/DrFixD_rainy/DrFixD-rainy \
+    --test_weight salmm_20260520-21:49:34
+
+Kết quả sau khi chạy:
+Kết quả được lưu trong thư mục visualResults/.
+
+Ví dụ:
+
+visualResults/
+└── test_thucte_DrfixD_rainy/
+    └── video7/
+        └── temp/
+            ├── add_frame_000001.png
+            ├── add_frame_000002.png
+            ├── add_frame_000003.png
+            └── ...
+
+Ý nghĩa:
+- add_frame_*.png là ảnh đã chồng heatmap lên ảnh gốc.
+- Những vùng sáng/nổi bật thể hiện khu vực mô hình dự đoán tài xế có khả năng chú ý nhiều hơn.
+
+============================================================
+8. GHÉP ẢNH KẾT QUẢ THÀNH VIDEO
+============================================================
+
+Sau khi chạy visualization.py, nếu trong thư mục temp có các ảnh dạng:
+
+add_frame_000001.png
+add_frame_000002.png
+add_frame_000003.png
+...
+
+thì có thể ghép thành video bằng ffmpeg.
+
+Di chuyển vào thư mục chứa ảnh:
+
+cd /home/hauvo/SaliencyMamba/visualResults/test_thucte_DrfixD_rainy/video7/temp
+
+Chạy lệnh:
+
+ffmpeg -framerate 20 \
+    -i add_frame_%06d.png \
+    -c:v libx264 \
+    -pix_fmt yuv420p \
+    result_video.mp4
+
+Kết quả:
+- File result_video.mp4 được tạo trong cùng thư mục.
+- Đây là video demo kết quả trực quan hóa dùng để đưa vào thư mục results_demo.zip.
+
+Lưu ý:
+Nếu tên ảnh không đúng dạng add_frame_%06d.png thì cần sửa lệnh cho đúng với tên ảnh thực tế.
+
+Ví dụ nếu ảnh có dạng frame_000001.png thì dùng:
+
+ffmpeg -framerate 20 \
+    -i frame_%06d.png \
+    -c:v libx264 \
+    -pix_fmt yuv420p \
+    result_video.mp4
+
+============================================================
+9. CÁCH TẠO FILE results_demo.zip
+============================================================
+
+Sau khi có kết quả trực quan hóa, tạo thư mục results_demo:
+
+mkdir -p results_demo/original
+mkdir -p results_demo/prediction_heatmap
+mkdir -p results_demo/overlay_result
+
+Sao chép một số ảnh gốc, heatmap và overlay vào thư mục tương ứng.
+
+Ví dụ:
+
+cp /duong_dan_anh_goc/*.jpg results_demo/original/
+cp /duong_dan_heatmap/*.png results_demo/prediction_heatmap/
+cp /duong_dan_overlay/add_frame_*.png results_demo/overlay_result/
+cp /duong_dan_video/result_video.mp4 results_demo/
+
+Nén thư mục:
+
+zip -r results_demo.zip results_demo/
+
+============================================================
+10. CÁCH TẠO FILE source_code.zip
+============================================================
+
+Trước khi nén source code, nên loại bỏ các file không cần thiết như:
+- __pycache__/
+- file tạm
+- checkpoint quá nặng nếu không cần gửi
+- dataset gốc
+- thư mục kết quả quá lớn
+
+Lệnh nén source code:
+
+cd /home/hauvo
+zip -r source_code.zip SaliencyMamba/ \
+    -x "SaliencyMamba/dataset/*" \
+    -x "SaliencyMamba/visualResults/*" \
+    -x "SaliencyMamba/ckpts/*" \
+    -x "*/__pycache__/*"
+
+Nếu cần gửi thêm checkpoint nhỏ để chạy demo, có thể giữ lại checkpoint đã dùng trong báo cáo hoặc gửi riêng file checkpoint.
+
+Ví dụ checkpoint cần gửi:
+- salmm_20260414-12:48:59
+- salmm_20260520-21:49:34
+
+Nếu checkpoint quá lớn, có thể upload checkpoint lên Google Drive và ghi link trong README.
+
+============================================================
+11. CÁCH TẠO FILE dataset_sample.zip
+============================================================
+
+Tạo thư mục dữ liệu mẫu:
+
+mkdir -p dataset_sample/images
+mkdir -p dataset_sample/maps
+mkdir -p dataset_sample/fixations
+
+Sao chép một số ảnh mẫu từ dataset gốc:
+
+cp /duong_dan_dataset/images/*.jpg dataset_sample/images/
+cp /duong_dan_dataset/maps/*.png dataset_sample/maps/
+cp /duong_dan_dataset/fixations/*.png dataset_sample/fixations/
+
+Nén lại:
+
+zip -r dataset_sample.zip dataset_sample/
+
+============================================================
+12. QUY TRÌNH TẠO RA KẾT QUẢ NHƯ TRONG BÁO CÁO
+============================================================
+
+Quy trình tổng quát:
+
+Bước 1:
+Giải nén source_code.zip.
+
+Bước 2:
+Cài đặt môi trường Python và các thư viện cần thiết.
+
+Bước 3:
+Đặt dataset đầy đủ vào đúng đường dẫn.
+
+Bước 4:
+Chạy train.py để huấn luyện mô hình.
+
+Bước 5:
+Sau khi train xong, lấy checkpoint trong thư mục ckpts/.
+
+Bước 6:
+Chạy evaluation.py để lấy các chỉ số CC, SIM và KLD.
+
+Bước 7:
+Chạy visualization.py để tạo heatmap và ảnh overlay.
+
+Bước 8:
+Dùng ffmpeg để ghép các ảnh overlay thành video result_video.mp4.
+
+Bước 9:
+Đưa bảng chỉ số, ảnh heatmap, ảnh overlay và video demo vào báo cáo.
+
+============================================================
+13. MỘT SỐ LỖI THƯỜNG GẶP VÀ CÁCH XỬ LÝ
+============================================================
+
+Lỗi 1: torch.cuda.is_available() trả về False
+
+Nguyên nhân:
+- Máy chưa nhận GPU.
+- Driver NVIDIA hoặc CUDA chưa phù hợp.
+- Cài nhầm bản PyTorch CPU.
+
+Cách xử lý:
+- Kiểm tra driver NVIDIA bằng lệnh:
+  nvidia-smi
+- Cài lại PyTorch bản hỗ trợ CUDA.
+
+------------------------------------------------------------
+
+Lỗi 2: Không tìm thấy dataset
+
+Ví dụ lỗi:
+No such file or directory
+
+Nguyên nhân:
+- Sai đường dẫn --root.
+- Dataset chưa được giải nén.
+- Cấu trúc thư mục không đúng.
+
+Cách xử lý:
+- Kiểm tra lại đường dẫn dataset.
+- Đảm bảo --root trỏ đúng vào thư mục dataset chính.
+
+------------------------------------------------------------
+
+Lỗi 3: Không tạo được video bằng ffmpeg
+
+Ví dụ lỗi:
+Could find no file with path 'add_frame_%06d.png'
+
+Nguyên nhân:
+- Tên ảnh không đúng định dạng add_frame_000001.png.
+- Đang đứng sai thư mục.
+- Ảnh không bắt đầu từ số 000001.
+
+Cách xử lý:
+- Dùng lệnh ls để kiểm tra tên ảnh:
+  ls
+- Nếu tên ảnh khác, sửa lại mẫu trong lệnh ffmpeg.
+- Đảm bảo đang cd đúng vào thư mục chứa ảnh.
+
+------------------------------------------------------------
+
+Lỗi 4: CUDA out of memory
+
+Nguyên nhân:
+- Batch size quá lớn so với dung lượng GPU.
+
+Cách xử lý:
+- Giảm batch size.
+Ví dụ:
+  --batch-size 4
+hoặc:
+  --batch-size 2
+
+============================================================
+14. GHI CHÚ QUAN TRỌNG
+============================================================
+
+Do dataset gốc và checkpoint mô hình có dung lượng lớn, em gửi kèm dữ liệu mẫu và kết quả demo để thầy kiểm tra. Toàn bộ quá trình huấn luyện và đánh giá chính thức được thực hiện trên dataset đầy đủ trong máy Ubuntu đã cài đặt môi trường SaliencyMamba.
+
+Các kết quả trong báo cáo được tạo ra theo quy trình:
+Dataset đầu vào -> Huấn luyện mô hình -> Đánh giá bằng CC, SIM, KLD -> Trực quan hóa heatmap -> Chồng heatmap lên ảnh gốc -> Ghép ảnh thành video demo.
+
+
